@@ -1,0 +1,30 @@
+﻿name: notification-prioritization
+version: "1.0.0"
+description: An OpenEnv environment that simulates real-world notification triage.
+tags:
+  - openenv
+  - notification
+  - prioritization
+tasks:
+  - id: task1
+    name: Classify Notifications
+    difficulty: easy
+    description: Label each of 8 notifications as urgent, informational, promotional, or social.
+  - id: task2
+    name: Prioritize Notifications
+    difficulty: medium
+    description: Assign a unique priority rank (1 = most urgent) to each of 15 notifications.
+  - id: task3
+    name: Triage Notifications
+    difficulty: hard
+    description: For each of 30 notifications choose dismiss/snooze/act_now/escalate and summarize escalated ones.
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  tasks: GET /tasks
+  grader: POST /grader
+  baseline: POST /baseline
+docker:
+  port: 7860
+  start_command: uvicorn app:app --host 0.0.0.0 --port 7860
