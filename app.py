@@ -48,6 +48,16 @@ def grader():
     if not s.done:
         raise HTTPException(status_code=400, detail="Episode not completed yet. Call /step first.")
     return {"task_id": s.task_id, "score": s.last_score, "done": s.done}
+@app.get("/validate")
+def validate():
+    results = []
+    for tid in TASKS:
+        try:
+            env.reset(task_id=tid, seed=42)
+            results.append({"task_id": tid, "status": "ok"})
+        except Exception as e:
+            results.append({"task_id": tid, "status": "error", "detail": str(e)})
+    return {"validation": results}
 
 @app.post("/baseline")
 def baseline():
