@@ -73,3 +73,9 @@ def baseline():
         return json.loads(result.stdout)
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Baseline script timed out.")
+def main():
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
+
+if __name__ == "__main__":
+    main()
