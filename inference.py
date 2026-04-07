@@ -60,11 +60,14 @@ if __name__ == "__main__":
     if not api_key:
         raise EnvironmentError("OPENAI_API_KEY not set")
     client = OpenAI(api_key=api_key)
+    print(json.dumps({"type": "START", "model": MODEL_NAME}))
     results = []
     for task_id in ["task1", "task2", "task3"]:
         try:
             result = run_task(client, task_id)
             results.append(result)
+            print(json.dumps({"type": "STEP", "task_id": task_id, "score": result["score"], "feedback": result["feedback"]}))
         except Exception as e:
             results.append({"task_id": task_id, "score": 0.0, "feedback": str(e)})
-    print(json.dumps({"model": MODEL_NAME, "results": results}, indent=2))
+            print(json.dumps({"type": "STEP", "task_id": task_id, "score": 0.0, "feedback": str(e)}))
+    print(json.dumps({"type": "END", "model": MODEL_NAME, "results": results}))
