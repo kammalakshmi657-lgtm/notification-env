@@ -10,22 +10,23 @@ class ResetRequest:
 
 from pydantic import BaseModel
 
+from typing import Optional
 class ResetReq(BaseModel):
-    task_id: str = "task1"
-    seed: int = 42
-
+    task_id: Optional[str] = "task1"
+    seed: Optional[int] = 42
 @app.get("/")
 def root():
     return {"status": "ok", "env": "notification-prioritization", "version": "1.0.0"}
 
 @app.post("/reset")
-def reset(req: ResetReq):
+def reset(req: Optional[ResetReq] = None):
+    if req is None:
+        req = ResetReq()
     try:
         obs = env.reset(task_id=req.task_id, seed=req.seed)
         return obs
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 @app.post("/step")
 def step(action: Action):
     try:
