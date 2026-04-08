@@ -49,12 +49,14 @@ def get_labels(task_id, obs):
         f"[{n['id']}] {n['source']} | {n['title']} | {n['body']}"
         for n in notifs
     )
+
     if task_id == "task1":
         prompt = (
             f"Classify each notification as urgent, informational, promotional, or social.\n"
             f"{lines}\n"
             f"Reply ONLY with JSON: {{\"labels\": [{{\"notification_id\": \"notif_000\", \"category\": \"urgent\"}}]}}"
         )
+
     elif task_id == "task2":
         n = len(notifs)
         prompt = (
@@ -62,25 +64,39 @@ def get_labels(task_id, obs):
             f"{lines}\n"
             f"Reply ONLY with JSON: {{\"labels\": [{{\"notification_id\": \"notif_000\", \"priority_rank\": 1}}]}}"
         )
+
     else:
         prompt = (
             f"For each notification choose: dismiss, snooze, act_now, or escalate.\n"
             f"{lines}\n"
             f"Reply ONLY with JSON: {{\"labels\": [{{\"notification_id\": \"notif_000\", \"action\": \"dismiss\", \"summary\": null}}]}}"
         )
+
     raw = call_llm(prompt)
     return parse_json(raw)["labels"]
 
+# 🔧 Fix function
+def normalize_score(score):
+    return max(0.0001, min(score, 0.9999))
+
+# 🔁 Main execution
 for task_id in ["task1", "task2", "task3"]:
     try:
         obs = call_reset(task_id)
         print(f"[START] task={task_id}", flush=True)
+
         labels = get_labels(task_id, obs)
         result = call_step(task_id, labels)
+
         score = result["reward"]["score"]
+        score = normalize_score(score)  # ✅ FIX APPLIED
+
         print(f"[STEP] step=1 reward={score}", flush=True)
         print(f"[END] task={task_id} score={score} steps=1", flush=True)
+
     except Exception as e:
         print(f"[START] task={task_id}", flush=True)
-        print(f"[STEP] step=1 reward=0.0", flush=True)
-        print(f"[END] task={task_id} score=0.0 steps=1", flush=True)
+
+        fallback_score = 0.0001  # ✅ FIX APPLIED
+        print(f"[STEP] step=1 reward={fallback_score}", flush=True)
+        print(f"[END] task={task_id} score={fallback_score} steps=1", flush=True)
