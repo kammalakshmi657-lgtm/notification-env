@@ -1,9 +1,7 @@
-﻿from typing import List, Dict
 from models import Action, NotificationCategory, NotificationAction, Reward
 
 def clamp(score):
-    """Score must be strictly between 0 and 1 (not 0.0, not 1.0)"""
-    return round(min(0.99, max(0.01, score)), 4)
+    return round(min(0.99, max(0.01, float(score))), 4)
 
 def grade_task1(action, ground_truth):
     urgency_tier = {NotificationCategory.urgent: 1, NotificationCategory.informational: 2, NotificationCategory.promotional: 3, NotificationCategory.social: 3}
