@@ -10,14 +10,17 @@ tasks:
     name: Classify Notifications
     difficulty: easy
     description: Label each of 8 notifications as urgent, informational, promotional, or social.
+    score_range: [0.01, 0.99]
   - id: task2
     name: Prioritize Notifications
     difficulty: medium
     description: Assign a unique priority rank (1 = most urgent) to each of 15 notifications.
+    score_range: [0.01, 0.99]
   - id: task3
     name: Triage Notifications
     difficulty: hard
     description: For each of 30 notifications choose dismiss/snooze/act_now/escalate and summarize escalated ones.
+    score_range: [0.01, 0.99]
 endpoints:
   reset: POST /reset
   step: POST /step
