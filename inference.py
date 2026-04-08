@@ -1,24 +1,23 @@
 import os, json, requests
 from openai import OpenAI
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://kammalakshmi-notification-prioritization-env.hf.space")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
 API_KEY = os.getenv("API_KEY", "dummy-key")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Use their LLM proxy - this is required!
-client = OpenAI(
-    api_key=API_KEY,
-    base_url=API_BASE_URL if "hf.space" not in API_BASE_URL else None
-)
+ENV_URL = "https://kammalakshmi-notification-prioritization-env.hf.space"
+
+def get_client():
+    return OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
 
 def call_reset(task_id, seed=42):
-    r = requests.post(f"https://kammalakshmi-notification-prioritization-env.hf.space/reset", json={"task_id": task_id, "seed": seed})
+    r = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id, "seed": seed})
     r.raise_for_status()
     return r.json()
 
 def call_step(action):
-    r = requests.post(f"https://kammalakshmi-notification-prioritization-env.hf.space/step", json=action)
+    r = requests.post(f"{ENV_URL}/step", json=action)
     r.raise_for_status()
     return r.json()
 
@@ -26,13 +25,13 @@ def get_llm_labels(task_id, obs):
     notifs = obs.get("notifications", [])
     lines = "\n".join(f"[{n['id']}] {n['source']} | {n['title']} | {n['body']}" for n in notifs)
     if task_id == "task1":
-        prompt = f"Classify each notification as urgent/informational/promotional/social.\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"category\": \"urgent\"}}]}}"
+        prompt = f"Classify each as urgent/informational/promotional/social.\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"category\": \"urgent\"}}]}}"
     elif task_id == "task2":
         n = len(notifs)
-        prompt = f"Rank {n} notifications by urgency (1=most urgent, {n}=least).\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"priority_rank\": 1}}]}}"
+        prompt = f"Rank {n} notifications by urgency (1=most urgent).\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"priority_rank\": 1}}]}}"
     else:
-        prompt = f"Choose dismiss/snooze/act_now/escalate for each notification.\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"action\": \"dismiss\", \"summary\": null}}]}}"
-    
+        prompt = f"Choose dismiss/snooze/act_now/escalate for each.\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"action\": \"dismiss\", \"summary\": null}}]}}"
+    client = get_client()
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
