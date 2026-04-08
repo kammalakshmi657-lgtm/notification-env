@@ -1,69 +1,86 @@
-import os, json, requests
-from openai import OpenAI
+import os
+import json
+import requests
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-API_KEY = os.getenv("API_KEY", "dummy-key")
-HF_TOKEN = os.getenv("HF_TOKEN")
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
+API_KEY = os.environ.get("API_KEY", "dummy-key")
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
 ENV_URL = "https://kammalakshmi-notification-prioritization-env.hf.space"
 
-client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
+def call_llm(prompt):
+    response = requests.post(
+        f"{API_BASE_URL}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.0,
+            "max_tokens": 1024,
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"].strip()
 
-def call_reset(task_id, seed=42):
-    r = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id, "seed": seed})
+def call_reset(task_id):
+    r = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id, "seed": 42}, timeout=30)
     r.raise_for_status()
     return r.json()
 
-def call_step(action):
-    r = requests.post(f"{ENV_URL}/step", json=action)
+def call_step(task_id, labels):
+    r = requests.post(f"{ENV_URL}/step", json={"task_id": task_id, "labels": labels}, timeout=30)
     r.raise_for_status()
     return r.json()
+
+def parse_json(raw):
+    if "```" in raw:
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    return json.loads(raw.strip())
 
 def get_labels(task_id, obs):
     notifs = obs.get("notifications", [])
-    lines = "\n".join(f"[{n['id']}] {n['source']} | {n['title']} | {n['body']}" for n in notifs)
+    lines = "\n".join(
+        f"[{n['id']}] {n['source']} | {n['title']} | {n['body']}"
+        for n in notifs
+    )
     if task_id == "task1":
-        prompt = f"Classify each as urgent/informational/promotional/social.\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"category\": \"urgent\"}}]}}"
+        prompt = (
+            f"Classify each notification as urgent, informational, promotional, or social.\n"
+            f"{lines}\n"
+            f"Reply ONLY with JSON: {{\"labels\": [{{\"notification_id\": \"notif_000\", \"category\": \"urgent\"}}]}}"
+        )
     elif task_id == "task2":
         n = len(notifs)
-        prompt = f"Rank {n} notifications by urgency (1=most urgent).\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"priority_rank\": 1}}]}}"
+        prompt = (
+            f"Rank these {n} notifications by urgency. 1=most urgent, {n}=least.\n"
+            f"{lines}\n"
+            f"Reply ONLY with JSON: {{\"labels\": [{{\"notification_id\": \"notif_000\", \"priority_rank\": 1}}]}}"
+        )
     else:
-        prompt = f"Choose dismiss/snooze/act_now/escalate for each.\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"action\": \"dismiss\", \"summary\": null}}]}}"
-    
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0
-    )
-    raw = response.choices[0].message.content.strip()
-    if raw.startswith("`"):
-        raw = raw.split("`")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    return json.loads(raw.strip())["labels"]
+        prompt = (
+            f"For each notification choose: dismiss, snooze, act_now, or escalate.\n"
+            f"{lines}\n"
+            f"Reply ONLY with JSON: {{\"labels\": [{{\"notification_id\": \"notif_000\", \"action\": \"dismiss\", \"summary\": null}}]}}"
+        )
+    raw = call_llm(prompt)
+    return parse_json(raw)["labels"]
 
-def run_task(task_id, seed=42):
-    obs = call_reset(task_id, seed)
-    print(f"[START] task={task_id}", flush=True)
-    labels = get_labels(task_id, obs)
-    action = {"task_id": task_id, "labels": labels}
-    result = call_step(action)
-    reward = result["reward"]
-    score = reward["score"]
-    print(f"[STEP] step=1 reward={score}", flush=True)
-    print(f"[END] task={task_id} score={score} steps=1", flush=True)
-    return {"task_id": task_id, "score": score, "feedback": reward["feedback"]}
-
-if __name__ == "__main__":
-    results = []
-    for task_id in ["task1", "task2", "task3"]:
-        try:
-            result = run_task(task_id)
-            results.append(result)
-        except Exception as e:
-            print(f"[START] task={task_id}", flush=True)
-            print(f"[STEP] step=1 reward=0.0", flush=True)
-            print(f"[END] task={task_id} score=0.0 steps=1", flush=True)
-            results.append({"task_id": task_id, "score": 0.0, "feedback": str(e)})
-    print(json.dumps({"model": MODEL_NAME, "results": results}, indent=2), flush=True)
+for task_id in ["task1", "task2", "task3"]:
+    try:
+        obs = call_reset(task_id)
+        print(f"[START] task={task_id}", flush=True)
+        labels = get_labels(task_id, obs)
+        result = call_step(task_id, labels)
+        score = result["reward"]["score"]
+        print(f"[STEP] step=1 reward={score}", flush=True)
+        print(f"[END] task={task_id} score={score} steps=1", flush=True)
+    except Exception as e:
+        print(f"[START] task={task_id}", flush=True)
+        print(f"[STEP] step=1 reward=0.0", flush=True)
+        print(f"[END] task={task_id} score=0.0 steps=1", flush=True)
