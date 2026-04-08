@@ -62,3 +62,10 @@ def validate():
         except Exception as e:
             results.append({"task_id": tid, "status": "error", "detail": str(e)})
     return {"validation": results}
+
+def main():
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=7860)
+
+if __name__ == '__main__':
+    main()
