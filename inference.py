@@ -8,8 +8,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 
 ENV_URL = "https://kammalakshmi-notification-prioritization-env.hf.space"
 
-def get_client():
-    return OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
+client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
 
 def call_reset(task_id, seed=42):
     r = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id, "seed": seed})
@@ -21,7 +20,7 @@ def call_step(action):
     r.raise_for_status()
     return r.json()
 
-def get_llm_labels(task_id, obs):
+def get_labels(task_id, obs):
     notifs = obs.get("notifications", [])
     lines = "\n".join(f"[{n['id']}] {n['source']} | {n['title']} | {n['body']}" for n in notifs)
     if task_id == "task1":
@@ -31,7 +30,7 @@ def get_llm_labels(task_id, obs):
         prompt = f"Rank {n} notifications by urgency (1=most urgent).\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"priority_rank\": 1}}]}}"
     else:
         prompt = f"Choose dismiss/snooze/act_now/escalate for each.\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"action\": \"dismiss\", \"summary\": null}}]}}"
-    client = get_client()
+    
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
@@ -44,22 +43,10 @@ def get_llm_labels(task_id, obs):
             raw = raw[4:]
     return json.loads(raw.strip())["labels"]
 
-def get_mock_labels(task_id, obs):
-    notifs = obs.get("notifications", [])
-    if task_id == "task1":
-        return [{"notification_id": n["id"], "category": "informational"} for n in notifs]
-    elif task_id == "task2":
-        return [{"notification_id": n["id"], "priority_rank": i+1} for i, n in enumerate(notifs)]
-    else:
-        return [{"notification_id": n["id"], "action": "dismiss", "summary": None} for n in notifs]
-
 def run_task(task_id, seed=42):
     obs = call_reset(task_id, seed)
     print(f"[START] task={task_id}", flush=True)
-    try:
-        labels = get_llm_labels(task_id, obs)
-    except Exception:
-        labels = get_mock_labels(task_id, obs)
+    labels = get_labels(task_id, obs)
     action = {"task_id": task_id, "labels": labels}
     result = call_step(action)
     reward = result["reward"]
