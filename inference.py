@@ -2,7 +2,6 @@ import os, json, requests
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://kammalakshmi-notification-prioritization-env.hf.space")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-HF_TOKEN = os.getenv("HF_TOKEN")
 
 def call_reset(task_id, seed=42):
     r = requests.post(f"{API_BASE_URL}/reset", json={"task_id": task_id, "seed": seed})
@@ -25,10 +24,10 @@ def get_mock_labels(task_id, obs):
 
 def get_llm_labels(task_id, obs):
     try:
-        from openai import OpenAI
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             return None
+        from openai import OpenAI
         client = OpenAI(api_key=api_key)
         notifs = obs.get("notifications", [])
         lines = "\n".join(f"[{n['id']}] {n['source']} | {n['title']} | {n['body']}" for n in notifs)
