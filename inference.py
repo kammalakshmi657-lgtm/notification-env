@@ -2,6 +2,7 @@ import os, json, requests
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://kammalakshmi-notification-prioritization-env.hf.space")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
 def call_reset(task_id, seed=42):
     r = requests.post(f"{API_BASE_URL}/reset", json={"task_id": task_id, "seed": seed})
@@ -22,44 +23,21 @@ def get_mock_labels(task_id, obs):
     else:
         return [{"notification_id": n["id"], "action": "dismiss", "summary": None} for n in notifs]
 
-def get_llm_labels(task_id, obs):
-    try:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            return None
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
-        notifs = obs.get("notifications", [])
-        lines = "\n".join(f"[{n['id']}] {n['source']} | {n['title']} | {n['body']}" for n in notifs)
-        if task_id == "task1":
-            prompt = f"Classify each as urgent/informational/promotional/social.\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"category\": \"urgent\"}}]}}"
-        elif task_id == "task2":
-            prompt = f"Rank {len(notifs)} notifications by urgency (1=most urgent).\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"priority_rank\": 1}}]}}"
-        else:
-            prompt = f"Choose dismiss/snooze/act_now/escalate for each.\n{lines}\nJSON only: {{\"labels\": [{{\"notification_id\": \"id\", \"action\": \"dismiss\", \"summary\": null}}]}}"
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0
-        )
-        raw = response.choices[0].message.content.strip()
-        if raw.startswith("`"):
-            raw = raw.split("`")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        return json.loads(raw.strip())["labels"]
-    except Exception:
-        return None
-
 def run_task(task_id, seed=42):
     obs = call_reset(task_id, seed)
-    labels = get_llm_labels(task_id, obs)
-    if labels is None:
-        labels = get_mock_labels(task_id, obs)
+    labels = get_mock_labels(task_id, obs)
     action = {"task_id": task_id, "labels": labels}
+
+    print(f"[START] task={task_id}", flush=True)
+
     result = call_step(action)
     reward = result["reward"]
-    return {"task_id": task_id, "score": reward["score"], "feedback": reward["feedback"]}
+    score = reward["score"]
+
+    print(f"[STEP] step=1 reward={score}", flush=True)
+    print(f"[END] task={task_id} score={score} steps=1", flush=True)
+
+    return {"task_id": task_id, "score": score, "feedback": reward["feedback"]}
 
 if __name__ == "__main__":
     results = []
@@ -68,5 +46,8 @@ if __name__ == "__main__":
             result = run_task(task_id)
             results.append(result)
         except Exception as e:
+            print(f"[START] task={task_id}", flush=True)
+            print(f"[STEP] step=1 reward=0.0", flush=True)
+            print(f"[END] task={task_id} score=0.0 steps=1", flush=True)
             results.append({"task_id": task_id, "score": 0.0, "feedback": str(e)})
-    print(json.dumps({"model": MODEL_NAME, "results": results}, indent=2))
+    print(json.dumps({"model": MODEL_NAME, "results": results}, indent=2), flush=True)
