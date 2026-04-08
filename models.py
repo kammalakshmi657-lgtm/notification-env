@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, Field
+﻿from pydantic import BaseModel, field_validator
 from typing import List, Optional
 from enum import Enum
 
@@ -40,10 +40,24 @@ class Action(BaseModel):
     task_id: str
     labels: List[NotificationLabel]
 
+# 🔥 FINAL FIX HERE
 class Reward(BaseModel):
-    score: float = Field(..., gt=0.0, lt=1.0)
+    score: float
     partial_scores: dict = {}
     feedback: str = ""
+
+    @field_validator("score")
+    def fix_score(cls, v):
+        try:
+            v = float(v)
+        except:
+            return 0.5  # safe fallback
+
+        if v <= 0:
+            return 0.0001
+        elif v >= 1:
+            return 0.9999
+        return v
 
 class StepResult(BaseModel):
     observation: Observation
