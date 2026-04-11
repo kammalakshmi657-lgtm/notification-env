@@ -18,7 +18,7 @@ def clamp_score(score):
 
 TASKS = {
     "task1": {
-        "description": "Classify notifications",
+        "description": "Classify each notification",
         "difficulty": "easy",
         "max_steps": 1,
         "generator": generate_task1_batch,
@@ -70,7 +70,7 @@ class NotificationEnv:
         grader = GRADERS[self._task_id]
         reward = grader(action, self._ground_truth)
 
-        # 🔥🔥 FINAL FIX (CRITICAL)
+        # 🔥🔥 ONLY IMPORTANT FIX (DO NOT CHANGE ANYTHING ELSE)
         safe_score = clamp_score(reward.score)
         reward.score = safe_score
         self._last_score = safe_score
