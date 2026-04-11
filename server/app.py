@@ -6,13 +6,14 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models import Action, Observation, StepResult, State
+from models import Action
 from env import NotificationEnv, TASKS
 
 app = FastAPI(title="Notification Prioritization Environment", version="1.0.0")
 env = NotificationEnv()
 
-# 🔥 Clamp function (NEW)
+
+# 🔥 Clamp function (FINAL SAFE)
 def clamp_score(score):
     try:
         score = float(score)
@@ -41,21 +42,31 @@ def reset(req: Optional[ResetReq] = None):
     if req is None:
         req = ResetReq()
     try:
-        obs = env.reset(task_id=req.task_id, seed=req.seed)
-        return obs
+        return env.reset(task_id=req.task_id, seed=req.seed)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# 🔥🔥 MOST IMPORTANT FIX HERE
+# 🔥🔥 FINAL FIXED STEP ENDPOINT
 @app.post("/step")
 def step(action: Action):
     try:
         result = env.step(action)
 
-        # 🔥 Clamp score before returning
-        if isinstance(result, dict) and "reward" in result and "score" in result["reward"]:
-            result["reward"]["score"] = clamp_score(result["reward"]["score"])
+        # ✅ FORCE SCORE INTO (0,1)
+        score = result.reward.score
+
+        try:
+            score = float(score)
+        except:
+            score = 0.5
+
+        if score <= 0:
+            score = 0.0001
+        elif score >= 1:
+            score = 0.9999
+
+        result.reward.score = score
 
         return result
 
@@ -88,7 +99,7 @@ def grader():
     if not s.done:
         raise HTTPException(status_code=400, detail="Episode not completed yet.")
 
-    # Already safe but double safety
+    # ✅ DOUBLE SAFETY
     score = clamp_score(s.last_score)
 
     return {"task_id": s.task_id, "score": score, "done": s.done}
