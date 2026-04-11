@@ -1,13 +1,13 @@
-﻿from models import Observation, Action, Reward, StepResult, State
+﻿from models import Observation, StepResult, State
 from data import generate_task1_batch, generate_task2_batch, generate_task3_batch
 from graders import GRADERS
 
-# 🔥 Clamp function (NEW - VERY IMPORTANT)
+# 🔥 FINAL SAFE CLAMP
 def clamp_score(score):
     try:
         score = float(score)
     except:
-        return 0.5  # safe fallback
+        return 0.5
 
     if score <= 0:
         return 0.0001
@@ -18,22 +18,22 @@ def clamp_score(score):
 
 TASKS = {
     "task1": {
-        "description": "Classify each notification into one of four categories: urgent, informational, promotional, or social. You will receive 8 notifications.",
+        "description": "Classify notifications",
         "difficulty": "easy",
         "max_steps": 1,
-        "generator": generate_task1_batch
+        "generator": generate_task1_batch,
     },
     "task2": {
-        "description": "Rank 15 notifications in order of urgency (1 = most urgent). Assign a unique priority_rank (1-15) to each notification.",
+        "description": "Rank notifications",
         "difficulty": "medium",
         "max_steps": 1,
-        "generator": generate_task2_batch
+        "generator": generate_task2_batch,
     },
     "task3": {
-        "description": "Triage 30 notifications. For each, choose an action: dismiss, snooze, act_now, or escalate. For every escalated notification, also provide a 1-line summary.",
+        "description": "Triage notifications",
         "difficulty": "hard",
         "max_steps": 1,
-        "generator": generate_task3_batch
+        "generator": generate_task3_batch,
     },
 }
 
@@ -48,9 +48,6 @@ class NotificationEnv:
         self._last_score = None
 
     def reset(self, task_id="task1", seed=42):
-        if task_id not in TASKS:
-            raise ValueError(f"Unknown task_id: {task_id}. Choose from {list(TASKS.keys())}")
-
         task = TASKS[task_id]
         notifications, ground_truth = task["generator"](seed=seed)
 
@@ -66,23 +63,19 @@ class NotificationEnv:
             task_description=task["description"],
             notifications=notifications,
             step=0,
-            max_steps=task["max_steps"]
+            max_steps=1,
         )
 
     def step(self, action):
-        if self._task_id is None:
-            raise RuntimeError("Call reset() before step().")
-        if self._done:
-            raise RuntimeError("Episode is done. Call reset() to start a new episode.")
-
         grader = GRADERS[self._task_id]
         reward = grader(action, self._ground_truth)
 
-        # 🔥🔥 CRITICAL FIX (MAIN ISSUE)
-        reward.score = clamp_score(reward.score)
+        # 🔥🔥 FINAL FIX (CRITICAL)
+        safe_score = clamp_score(reward.score)
+        reward.score = safe_score
+        self._last_score = safe_score
 
         self._step_count += 1
-        self._last_score = reward.score
         self._done = True
 
         next_obs = Observation(
@@ -90,24 +83,21 @@ class NotificationEnv:
             task_description=TASKS[self._task_id]["description"],
             notifications=self._notifications,
             step=self._step_count,
-            max_steps=TASKS[self._task_id]["max_steps"]
+            max_steps=1,
         )
 
         return StepResult(
             observation=next_obs,
             reward=reward,
-            done=self._done,
-            info={"task_id": self._task_id, "step": self._step_count}
+            done=True,
+            info={"task_id": self._task_id},
         )
 
     def state(self):
-        if self._task_id is None:
-            return State(task_id="none", step=0, notifications=[], last_score=None, done=False)
-
         return State(
-            task_id=self._task_id,
+            task_id=self._task_id or "none",
             step=self._step_count,
             notifications=self._notifications,
             last_score=self._last_score,
-            done=self._done
+            done=self._done,
         )
